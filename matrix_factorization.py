@@ -1,3 +1,8 @@
+## Whisky Recommender by User Based Nearest Neighbor
+## Authoer: Hiuyan Lau
+## April 7, 2022
+## Raw Data Source: Whiskybase.com
+
 import pandas as pd
 import numpy as np
 

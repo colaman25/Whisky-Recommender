@@ -1,32 +1,19 @@
 ## Whisky Recommender by User Based Nearest Neighbor
-## Authoer: Hiuyan Lau
-## April 7, 2022
+## Author: Hiuyan Lau
+## Last Updated: June 16, 2022
 ## Raw Data Source: Whiskybase.com
 
 import pandas as pd
 import numpy as np
 
-## DATA CLEANING AND PREPERATION ##
-
-# Load raw data extracted from the data scraper
-raw_rating_data = pd.read_csv('userratings_raw.csv')
-
-# Create UserIDs and WhiskyIDs based usernames and whisky names
-whisky_id = pd.DataFrame(raw_rating_data['Whisky'].unique()).reset_index().set_axis(['whiskyID', 'Whisky Name'], axis=1)
-user_id = pd.DataFrame(raw_rating_data['user'].unique()).reset_index().set_axis(['userID', 'user'], axis=1)
-
-# Rearrange and extract user-ratings records with userIDs and whiskyIDs
-raw_rating_data = raw_rating_data.merge(whisky_id, left_on = 'Whisky', right_on = 'Whisky Name').merge(user_id, left_on = 'user', right_on = 'user')
-raw_rating_data['User Rating'] = pd.to_numeric(raw_rating_data['User Rating'], errors = 'coerce')
-rating_matrix = raw_rating_data[['userID','whiskyID','User Rating']]
-
 
 ## RECOMMENDATION FUNCTION ##
-def run_recommendation(rating_matrix, myuserID, numNeighbors = 20):
+def recommendation_eng(rating_matrix, myuserID, numNeighbors = 20):
 
     # Extract target user ratings, and find all users that has contributed ratings to any whisky rated by the target user
     targetuser_rating = rating_matrix[rating_matrix['userID'] == myuserID]
     all_relevant_ratings = rating_matrix[(rating_matrix['whiskyID'].isin(targetuser_rating['whiskyID'].tolist())) & (rating_matrix['userID'] != myuserID)]
+    all_relevant_ratings.drop_duplicates(subset=['userID', 'whiskyID'], keep='last', inplace=True)
     relevant_ratings = all_relevant_ratings.groupby(['userID'])
 
     pearsonCorrelationDict = {}
@@ -63,7 +50,7 @@ def run_recommendation(rating_matrix, myuserID, numNeighbors = 20):
     topUsersRating = topUsers.merge(rating_matrix, left_on='userId', right_on='userID', how='inner')
     topUsersRating['weightedRating'] = topUsersRating['similarityIndex']*topUsersRating['User Rating']
 
-    # Sum the weighted ratings from each neighbors for each whisky
+    # Sum the weighted ratings from all neighbors for each whisky
     tempTopUsersRating = topUsersRating.groupby('whiskyID').sum()[['similarityIndex', 'weightedRating']]
     tempTopUsersRating.columns = ['sum_similarityIndex', 'sum_weightedRating']
 
@@ -77,11 +64,37 @@ def run_recommendation(rating_matrix, myuserID, numNeighbors = 20):
 
     return recommendation_df
 
-# Run the recommendation function
-recommendation_df = run_recommendation(rating_matrix, 12, 20)
 
-# Merge whisky names to whiskyIDs for the output
-recommendation_df = recommendation_df.merge(whisky_id, left_index=True, right_on='whiskyID', how='left')
+def run_process(myuserID, numNeighbors = 20):
+    ## DATA CLEANING AND PREPERATION ##
 
-# Print Output
-print(recommendation_df[['whiskyID', 'Whisky Name', 'weighted average recommendation score']].head(10))
+    # Load raw data extracted from the data scraper
+    raw_rating_data = pd.read_csv('userratings_raw.csv')
+
+    # Create UserIDs and WhiskyIDs based usernames and whisky names
+    whisky_id = pd.DataFrame(raw_rating_data['Whisky'].unique()).reset_index().set_axis(['whiskyID', 'Whisky Name'],
+                                                                                        axis=1)
+    user_id = pd.DataFrame(raw_rating_data['user'].unique()).reset_index().set_axis(['userID', 'user'], axis=1)
+
+    # Rearrange and extract user-ratings records with userIDs and whiskyIDs
+    raw_rating_data = raw_rating_data.merge(whisky_id, left_on='Whisky', right_on='Whisky Name').merge(user_id,
+                                                                                                       left_on='user',
+                                                                                                       right_on='user')
+    raw_rating_data['User Rating'] = pd.to_numeric(raw_rating_data['User Rating'], errors='coerce')
+    rating_matrix = raw_rating_data[['userID', 'whiskyID', 'User Rating']]
+
+    # Run the recommendation function
+    recommendation_df = recommendation_eng(rating_matrix, myuserID, numNeighbors)
+
+    # Merge whisky names to whiskyIDs for the output
+    recommendation_df = recommendation_df.merge(whisky_id, left_index=True, right_on='whiskyID', how='left')
+
+    # Print Output
+    print(recommendation_df[['whiskyID', 'Whisky Name', 'weighted average recommendation score']].head(10))
+
+    return recommendation_df[['whiskyID', 'Whisky Name', 'weighted average recommendation score']].head(10)
+
+def process_api(myuserID, numNeighbors = 20):
+    results_df = run_process(myuserID, numNeighbors)
+    output = results_df.to_dict('records')
+    return output, 200
