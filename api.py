@@ -28,4 +28,4 @@ class getRecommendations(Resource):
 api.add_resource(getRecommendations, '/getrecommendations')
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
