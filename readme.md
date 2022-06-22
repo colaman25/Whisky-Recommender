@@ -1,6 +1,12 @@
 # Whisky Recommender
 Author: Hiuyan Lau
 
+## Run Dockerized API
+- Build a docker image using the Docerfile
+- Run the image using detach mode.
+- Send a GET request to 0.0.0.0:5000/getrecommendations?userId=[UserId]&numNeighbors=[k]
+- UserId = User Id of the subject user, and k = number of nearest neighbors for the algorithm
+
 ## Gathering Data
 - All data was gathered from www.whiskybase.com.
 - Run whisky_base_com_scraper.py to scrape and gather data from the website.
