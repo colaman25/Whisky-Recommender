@@ -22,7 +22,6 @@ rawratings = rawdata[['userID','whiskyID','User Rating']]
 
 # Creating a user-whisky rating Matrix
 y = pd.pivot_table(rawratings, index='userID', columns='whiskyID', values='User Rating', aggfunc=np.mean)
-y.fillna(0, inplace=True)
 yy = y.to_numpy()
 
 ## RECOMMENDATION FUNCTION ##
@@ -33,18 +32,20 @@ class matrix_factorization():
         self.features = features
         self.user_count = data.shape[0]
         self.item_count = data.shape[1]
-        self.user_features = np.random.uniform(low=0.1, high=0.9, size=(self.user_count, self.features))
+        self.user_features = np.random.uniform(low=75.0, high=100.0, size=(self.user_count, self.features))
         self.item_features = np.random.uniform(low=0.1, high=0.9, size=(self.features, self.item_count))
 
     def MSE(self):
         matrix_product = np.matmul(self.user_features, self.item_features)
-        return np.sum((self.data - matrix_product) ** 2)
+        return np.nansum((self.data - matrix_product) ** 2)
 
     def single_gradient(self, user_row, item_col, wrt_user_idx=None, wrt_item_idx=None):
         if wrt_user_idx != None and wrt_item_idx != None:
             return 'Too many elements.'
         elif wrt_user_idx == None and wrt_item_idx == None:
             return 'Insufficient elements.'
+        elif np.isnan(self.data[user_row, item_col]):
+            return np.nan
         else:
             u_row = self.user_features[user_row, :]
             i_col = self.item_features[:, item_col]
@@ -60,15 +61,23 @@ class matrix_factorization():
 
     def user_feature_gradient(self, user_row, wrt_user_idx):
         summation = 0
+        valid_count = 0
         for col in range(0, self.item_count):
-            summation += self.single_gradient(user_row=user_row, item_col=col, wrt_user_idx=wrt_user_idx)
-        return summation / self.item_count
+            gradient = self.single_gradient(user_row=user_row, item_col=col, wrt_user_idx=wrt_user_idx)
+            if not np.isnan(gradient):
+                summation += gradient
+                valid_count += 1
+        return summation / valid_count
 
     def item_feature_gradient(self, item_col, wrt_item_idx):
         summation = 0
+        valid_count = 0
         for row in range(0, self.user_count):
-            summation += self.single_gradient(user_row=row, item_col=item_col, wrt_item_idx=wrt_item_idx)
-        return summation / self.user_count
+            gradient = self.single_gradient(user_row=row, item_col=item_col, wrt_item_idx=wrt_item_idx)
+            if not np.isnan(gradient):
+                summation += gradient
+                valid_count += 1
+        return summation / valid_count
 
     def update_user_features(self, learning_rate):
         for i in range(0, self.user_count):
@@ -80,7 +89,7 @@ class matrix_factorization():
             for j in range(0, self.item_count):
                 self.item_features[i, j] += learning_rate * self.item_feature_gradient(item_col=j, wrt_item_idx=i)
 
-    def train_model(self, learning_rate=0.1, iterations=1000):
+    def train_model(self, learning_rate=0.0001, iterations=1000):
         for i in range(iterations):
             self.update_user_features(learning_rate=learning_rate)
             self.update_item_features(learning_rate=learning_rate)
@@ -89,7 +98,7 @@ class matrix_factorization():
 
 # Run Model
 d = matrix_factorization(yy, 2)
-d.train_model(learning_rate=0.1, iterations=10)
+d.train_model(learning_rate=0.0001, iterations=20)
 
 def printoutput(userID):
     output = pd.DataFrame(np.dot(d.user_features, d.item_features)[userID], index=y.columns, columns=['Score'])
